@@ -1,0 +1,16 @@
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Docker local
+docker-compose.override.yml
+
+# Sistema e editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+*.log

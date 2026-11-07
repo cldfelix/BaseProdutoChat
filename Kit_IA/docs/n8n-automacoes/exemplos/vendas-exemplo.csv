@@ -1,0 +1,19 @@
+data,regiao,produto,vendedor,quantidade,valor
+2026-10-05,Sudeste,Plano Starter,Ana Souza,12,11880.00
+2026-10-05,Sul,Plano Pro,Carlos Lima,4,7960.00
+2026-10-06,Nordeste,Plano Starter,Bruna Alves,9,8910.00
+2026-10-07,Sudeste,Plano Enterprise,Rafael Costa,2,15800.00
+2026-10-08,Centro-Oeste,Plano Pro,Ana Souza,3,5970.00
+2026-10-09,Sul,Plano Starter,Carlos Lima,7,6930.00
+2026-10-12,Nordeste,Plano Pro,Bruna Alves,5,9950.00
+2026-10-13,Sudeste,Plano Enterprise,Rafael Costa,1,7900.00
+2026-10-14,Norte,Plano Starter,Diego Martins,6,5940.00
+2026-10-15,Centro-Oeste,Plano Pro,Ana Souza,4,7960.00
+2026-10-19,Sudeste,Plano Pro,Carlos Lima,8,15920.00
+2026-10-20,Sul,Plano Enterprise,Rafael Costa,2,15800.00
+2026-10-21,Nordeste,Plano Starter,Bruna Alves,10,9900.00
+2026-10-22,Norte,Plano Pro,Diego Martins,3,5970.00
+2026-10-26,Sudeste,Plano Enterprise,Rafael Costa,3,23700.00
+2026-10-27,Centro-Oeste,Plano Starter,Ana Souza,11,10890.00
+2026-10-28,Sul,Plano Pro,Carlos Lima,6,11940.00
+2026-10-29,Nordeste,Plano Enterprise,Bruna Alves,1,7900.00

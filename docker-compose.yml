@@ -1,0 +1,4 @@
+name: baseproduto
+
+include:
+  - path: ./Kit_IA/docker-compose.yml

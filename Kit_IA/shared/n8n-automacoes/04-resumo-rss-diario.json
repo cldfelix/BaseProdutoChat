@@ -1,0 +1,247 @@
+{
+  "name": "04 — Resumo diário de notícias (RSS + IA)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Resumo diário de notícias (RSS + IA)\n\nRoda todos os dias às 08:00 (timezone do container).\n\nTroque a URL do RSS e o destinatário do e-mail.\nCrie a credencial **Gmail OAuth2** (ou substitua por Send Email/SMTP).\n\nSem credencial de e-mail? Use **Convert to File** (toText) +\n**Read/Write Files from Disk** para salvar em `/data/shared/resumos.txt`.",
+        "height": 280,
+        "width": 540,
+        "color": 5
+      },
+      "id": "6490a435-b1e4-57e4-bb2b-e6a4a78c4ecc",
+      "name": "Nota 04",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        },
+        "misfirePolicy": "skip"
+      },
+      "id": "488b4631-8ad2-56c3-a791-a43daeff5ea7",
+      "name": "Diário 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://g1.globo.com/rss/g1/tecnologia/",
+        "options": {}
+      },
+      "id": "61e78f54-0a64-53d6-8138-54e8ce43b93c",
+      "name": "RSS: tecnologia",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 10,
+        "keep": "firstItems"
+      },
+      "id": "266c0d34-cfc0-5afd-a5d0-04c13945b401",
+      "name": "Top 10",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((item) => {\n  const n = item.json;\n  return {\n    json: {\n      titulo: n.title ?? '',\n      link: n.link ?? '',\n      resumo: String(n.contentSnippet ?? n.content ?? '').slice(0, 500),\n    },\n  };\n});"
+      },
+      "id": "cc1aea6c-83d5-5054-9b8e-8181aecaea9a",
+      "name": "Selecionar campos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "noticias",
+        "include": "allFields"
+      },
+      "id": "d1462954-bda6-5e25-83d4-536c883eca92",
+      "name": "Agrupar notícias",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é um analista de tecnologia. Resuma as notícias abaixo em português do Brasil, em no máximo 5 tópicos (uma linha cada), e finalize com uma frase curta de tendência.\n\nNotícias (JSON):\n{{ JSON.stringify($json.noticias) }}",
+        "hasOutputParser": false
+      },
+      "id": "d460737a-67d8-5c43-a422-17014ac6ccba",
+      "name": "Resumir com IA",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "a1409ebb-51d6-5dd8-b187-f7f9cdf930b6",
+      "name": "Ollama Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        260
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "voce@exemplo.com",
+        "subject": "=Resumo diário de tecnologia — {{ $now.toFormat('dd/MM/yyyy') }}",
+        "emailType": "text",
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "id": "0a43b107-edfe-5fc9-bc61-86277deed353",
+      "name": "Gmail: enviar resumo",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Diário 08:00": {
+      "main": [
+        [
+          {
+            "node": "RSS: tecnologia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: tecnologia": {
+      "main": [
+        [
+          {
+            "node": "Top 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Top 10": {
+      "main": [
+        [
+          {
+            "node": "Selecionar campos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar campos": {
+      "main": [
+        [
+          {
+            "node": "Agrupar notícias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agrupar notícias": {
+      "main": [
+        [
+          {
+            "node": "Resumir com IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Resumir com IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumir com IA": {
+      "main": [
+        [
+          {
+            "node": "Gmail: enviar resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "1bd77ad8-7f27-54f4-8f96-615de24b25e6",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

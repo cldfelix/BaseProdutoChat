@@ -1,0 +1,229 @@
+{
+  "name": "03 — Triagem de e-mails com IA",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Triagem de e-mails com IA\n\n1. Crie a credencial **Gmail OAuth2** e selecione no trigger.\n2. Crie a credencial **Telegram** (BotFather) e troque `SEU_CHAT_ID`.\n3. O classificador usa o modelo local `llama3.2`.\n\nCada categoria vira uma saída separada do nó de classificação.\nE-mails urgentes/financeiros geram alerta; os demais são apenas\nmarcados como lidos (ajuste para arquivar/rotular).",
+        "height": 300,
+        "width": 560,
+        "color": 5
+      },
+      "id": "bb50f892-fd50-5ee7-8871-e7e1547a25c4",
+      "name": "Nota 03",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": true,
+        "filters": {},
+        "options": {}
+      },
+      "id": "4a1ad993-c094-53ae-a00f-e5a79588c4b8",
+      "name": "Gmail: novo e-mail",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "cc8f0116-c940-5efa-9729-7708d84a77d5"
+    },
+    {
+      "parameters": {
+        "inputText": "={{ $json.text || $json.snippet || '' }}",
+        "categories": {
+          "categories": [
+            {
+              "category": "Urgente",
+              "description": "Precisa de ação imediata, prazo curto ou incidente."
+            },
+            {
+              "category": "Financeiro",
+              "description": "Notas fiscais, cobranças, pagamentos, contratos e orçamentos."
+            },
+            {
+              "category": "Suporte",
+              "description": "Dúvidas, problemas técnicos ou pedidos de ajuda de clientes."
+            },
+            {
+              "category": "Outros",
+              "description": "Newsletters, avisos internos e assuntos sem ação imediata."
+            }
+          ]
+        },
+        "options": {
+          "fallback": "other",
+          "includeConfidenceScores": true
+        }
+      },
+      "id": "749123c4-4032-5690-8f3d-c1bd09fe4297",
+      "name": "Classificar e-mail",
+      "type": "@n8n/n8n-nodes-langchain.textClassifier",
+      "typeVersion": 1.1,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "a1409ebb-51d6-5dd8-b187-f7f9cdf930b6",
+      "name": "Ollama Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        260,
+        260
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "SEU_CHAT_ID",
+        "text": "=🚨 E-MAIL URGENTE\n\nDe: {{ $json.from?.text || $json.from || 'desconhecido' }}\nAssunto: {{ $json.subject || '(sem assunto)' }}\n\n{{ $json.snippet || '' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "37b0b284-cb94-56e9-af0b-dd63abfb5156",
+      "name": "Telegram: urgente",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "SEU_CHAT_ID",
+        "text": "=💰 E-MAIL FINANCEIRO\n\nDe: {{ $json.from?.text || $json.from || 'desconhecido' }}\nAssunto: {{ $json.subject || '(sem assunto)' }}\n\n{{ $json.snippet || '' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e25a823e-fa56-5f0c-8261-9893f3f6cb5b",
+      "name": "Telegram: financeiro",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail: novo e-mail').item.json.id }}"
+      },
+      "id": "b4a3f527-e9e3-5dc2-97e2-f885ff9d5249",
+      "name": "Gmail: marcar como lido",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Gmail: novo e-mail": {
+      "main": [
+        [
+          {
+            "node": "Classificar e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classificar e-mail",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificar e-mail": {
+      "main": [
+        [
+          {
+            "node": "Telegram: urgente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: financeiro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: marcar como lido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: marcar como lido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: marcar como lido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "f46e90b5-b822-557f-b59a-3af23bdcad55",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

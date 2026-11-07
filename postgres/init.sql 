@@ -1,0 +1,19 @@
+-- Habilita o PostGIS para dados geoespaciais
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- Habilita o TimescaleDB para séries temporais
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+-- Habilita o pgvectorscale (CASCADE instala o pgvector automaticamente)
+CREATE EXTENSION IF NOT EXISTS vectorscale CASCADE;
+
+ubuntu@instance-20260908-1121:~/postgres$ cat init.sql
+-- Habilita o PostGIS para dados geoespaciais
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- Habilita o TimescaleDB para séries temporais
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+-- Habilita o pgvectorscale (CASCADE instala o pgvector automaticamente)
+CREATE EXTENSION IF NOT EXISTS vectorscale CASCADE;
+

@@ -1,0 +1,237 @@
+{
+  "name": "08 — Agente de atendimento no Telegram (RAG)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Agente de atendimento no Telegram\n\n1. Crie um bot no @BotFather e copie o token.\n2. Crie a credencial **Telegram** no n8n.\n3. Ative o workflow e envie uma mensagem para o bot.\n\nO agente usa o modelo local `llama3.2`, memória por chat e a\nferramenta de busca no Qdrant (rode o workflow 01 antes).",
+        "height": 300,
+        "width": 560,
+        "color": 5
+      },
+      "id": "9911ad3e-66c0-5b0b-bff7-54ab39cfbed7",
+      "name": "Nota 08",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -280,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "2e79e68c-dcd0-5bf0-83e9-7689ceb425bc",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "54cf4178-6278-5809-aaec-6838a0f147f7"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "Você é o assistente de atendimento da empresa no Telegram.\nResponda em português do Brasil, de forma curta e cordial.\nUse a ferramenta buscar_documentos para dúvidas sobre produtos,\nprazos e políticas. Se não encontrar a informação, ofereça\nencaminhar para um atendente humano."
+        }
+      },
+      "id": "9f97238e-1527-5f5e-8a4b-702c7bbc826d",
+      "name": "Agente de atendimento",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "a1409ebb-51d6-5dd8-b187-f7f9cdf930b6",
+      "name": "Ollama Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        280,
+        260
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.message.chat.id }}",
+        "contextWindowLength": 12
+      },
+      "id": "44d65e62-a5f7-5d92-a00c-689107cb88a5",
+      "name": "Memória por chat",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        280,
+        430
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "documentos"
+        },
+        "toolName": "buscar_documentos",
+        "toolDescription": "Busca trechos relevantes na base de conhecimento interna.",
+        "topK": 4,
+        "includeDocumentMetadata": true
+      },
+      "id": "1b269e78-ef67-5ad3-b8c7-67c9f7e1a441",
+      "name": "Qdrant: buscar (tool)",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        280,
+        600
+      ],
+      "credentials": {
+        "qdrantApi": {
+          "id": "sFfERYppMeBnFNeA",
+          "name": "Local QdrantApi database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text"
+      },
+      "id": "3107f904-e6e4-520d-958f-bd2814d8f35f",
+      "name": "Ollama Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        280,
+        800
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5e71b80b-6530-5e7a-b681-3c990cc0ffdc",
+      "name": "Responder no Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Agente de atendimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente de atendimento",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória por chat": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente de atendimento",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant: buscar (tool)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de atendimento",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant: buscar (tool)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de atendimento": {
+      "main": [
+        [
+          {
+            "node": "Responder no Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "ae970b49-a471-5ca3-a5d6-28e2883c734c",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

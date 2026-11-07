@@ -1,0 +1,283 @@
+{
+  "name": "05 — Extração de faturas em PDF",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Extração de faturas em PDF\n\nEnvie um PDF no formulário e o resultado é gravado em\n`./shared/faturas.jsonl` (uma linha JSON por fatura).\n\nO modelo local extrai os campos; revise os valores antes de usar\nem produção (LLMs podem errar números).\n\nPara trocar por Google Sheets/Postgres, substitua os dois últimos nós.",
+        "height": 300,
+        "width": 560,
+        "color": 5
+      },
+      "id": "e2725a31-f5ef-5b14-986c-b7681727b1ab",
+      "name": "Nota 05",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Extração de faturas",
+        "formDescription": "Envie uma fatura ou nota fiscal em PDF.",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "arquivo",
+              "fieldLabel": "Fatura (PDF)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "faturas",
+          "appendAttribution": false,
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Fatura recebida. Os dados serão extraídos e salvos."
+            }
+          }
+        }
+      },
+      "id": "6935b8c4-4b30-5a87-94dc-b93ad71da9b9",
+      "name": "Form: enviar fatura",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "d42a37e1-c4ab-5947-a271-768da4053e00"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "arquivo",
+        "options": {}
+      },
+      "id": "dc3402a8-0add-5a02-97c6-08fd35428aea",
+      "name": "Extrair texto (PDF)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "schemaType": "fromAttributes",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "fornecedor",
+              "type": "string",
+              "description": "Razão social do emitente",
+              "required": true
+            },
+            {
+              "name": "cnpj",
+              "type": "string",
+              "description": "CNPJ do emitente, somente números",
+              "required": false
+            },
+            {
+              "name": "numero_nota",
+              "type": "string",
+              "description": "Número da nota/fatura",
+              "required": false
+            },
+            {
+              "name": "data_emissao",
+              "type": "date",
+              "description": "Data de emissão no formato YYYY-MM-DD",
+              "required": false
+            },
+            {
+              "name": "valor_total",
+              "type": "number",
+              "description": "Valor total em reais",
+              "required": true
+            },
+            {
+              "name": "impostos",
+              "type": "number",
+              "description": "Total de impostos, se informado",
+              "required": false
+            },
+            {
+              "name": "moeda",
+              "type": "string",
+              "description": "Moeda (BRL, USD...)",
+              "required": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c7e8ae79-c327-5d28-be30-15ad0dd64354",
+      "name": "Extrair dados da fatura",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "a1409ebb-51d6-5dd8-b187-f7f9cdf930b6",
+      "name": "Ollama Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        520,
+        260
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const dados = $input.first().json.output ?? {};\nconst registro = {\n  fornecedor: dados.fornecedor ?? null,\n  cnpj: dados.cnpj ?? null,\n  numero_nota: dados.numero_nota ?? null,\n  data_emissao: dados.data_emissao ?? null,\n  valor_total: dados.valor_total ?? null,\n  impostos: dados.impostos ?? null,\n  moeda: dados.moeda ?? 'BRL',\n  processado_em: new Date().toISOString(),\n};\nreturn [{ json: { ...registro, linha: JSON.stringify(registro) + '\\n' } }];"
+      },
+      "id": "87050e37-7e64-55e1-a48e-65f6c2529e86",
+      "name": "Montar registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "linha",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "f983a073-0fb3-5d9e-a186-a8b16056ba9f",
+      "name": "Converter em texto",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/data/shared/faturas.jsonl",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "3173009c-656c-5031-9296-18bdfcb78105",
+      "name": "Anexar em faturas.jsonl",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1300,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Form: enviar fatura": {
+      "main": [
+        [
+          {
+            "node": "Extrair texto (PDF)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair texto (PDF)": {
+      "main": [
+        [
+          {
+            "node": "Extrair dados da fatura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extrair dados da fatura",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair dados da fatura": {
+      "main": [
+        [
+          {
+            "node": "Montar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar registro": {
+      "main": [
+        [
+          {
+            "node": "Converter em texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter em texto": {
+      "main": [
+        [
+          {
+            "node": "Anexar em faturas.jsonl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "ccfee306-5d7e-50c5-aee5-bc50830e9874",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

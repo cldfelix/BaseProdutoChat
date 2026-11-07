@@ -1,0 +1,226 @@
+{
+  "name": "09 — Relatório semanal de vendas com IA",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Relatório semanal com IA\n\nLê `./shared/vendas.csv` (montado como `/data/shared/vendas.csv`).\nCopie o exemplo:\n`cp docs/n8n-automacoes/exemplos/vendas-exemplo.csv shared/vendas.csv`\n\nO Code agrega os números e a IA escreve a narrativa executiva.\nTroque o destinatário e configure a credencial **Gmail OAuth2**.",
+        "height": 300,
+        "width": 560,
+        "color": 5
+      },
+      "id": "b103ecd2-9552-55cf-85e5-2afc0195c6d9",
+      "name": "Nota 09",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -280,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        },
+        "misfirePolicy": "skip"
+      },
+      "id": "4d1f99e6-3658-5456-b2d9-afa2034189d8",
+      "name": "Segunda 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/data/shared/vendas.csv",
+        "options": {}
+      },
+      "id": "7c197f0e-7d2b-546c-a322-b849c806188f",
+      "name": "Ler vendas.csv",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "csv",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "5d359701-db96-591a-b449-fbeda34485b2",
+      "name": "Converter CSV",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const rows = $input.all().map((i) => i.json).filter((r) => r && r.valor);\nlet total = 0;\nconst porRegiao = {};\nconst porProduto = {};\nfor (const r of rows) {\n  const v = Number(r.valor) || 0;\n  total += v;\n  porRegiao[r.regiao] = Number(((porRegiao[r.regiao] || 0) + v).toFixed(2));\n  porProduto[r.produto] = Number(((porProduto[r.produto] || 0) + v).toFixed(2));\n}\nconst topProdutos = Object.entries(porProduto)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 5)\n  .map(([produto, valor]) => ({ produto, valor }));\nreturn [{ json: {\n  quantidade_pedidos: rows.length,\n  total_vendas: Number(total.toFixed(2)),\n  ticket_medio: Number((total / (rows.length || 1)).toFixed(2)),\n  por_regiao: porRegiao,\n  top_produtos: topProdutos,\n  periodo: `${rows[0]?.data ?? ''} a ${rows[rows.length - 1]?.data ?? ''}`,\n} }];"
+      },
+      "id": "36be6304-4613-5ba7-adb8-7ede6193157c",
+      "name": "Agregar indicadores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é um analista de vendas. Com base nos indicadores abaixo, escreva um resumo executivo em português do Brasil com:\n1) destaque do período; 2) leitura dos números; 3) 2 recomendações práticas.\nUse no máximo 12 linhas e não invente dados.\n\nIndicadores (JSON):\n{{ JSON.stringify($json) }}",
+        "hasOutputParser": false
+      },
+      "id": "50156e52-3333-51ca-91c4-1e9edc675fe1",
+      "name": "Gerar narrativa",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "a1409ebb-51d6-5dd8-b187-f7f9cdf930b6",
+      "name": "Ollama Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        960,
+        260
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "voce@exemplo.com",
+        "subject": "=Relatório semanal de vendas — {{ $now.toFormat('dd/MM/yyyy') }}",
+        "emailType": "text",
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "id": "d7749187-5aeb-59fa-8bad-f7a40a37af1a",
+      "name": "Gmail: enviar relatório",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Segunda 08:00": {
+      "main": [
+        [
+          {
+            "node": "Ler vendas.csv",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler vendas.csv": {
+      "main": [
+        [
+          {
+            "node": "Converter CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter CSV": {
+      "main": [
+        [
+          {
+            "node": "Agregar indicadores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agregar indicadores": {
+      "main": [
+        [
+          {
+            "node": "Gerar narrativa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Gerar narrativa",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar narrativa": {
+      "main": [
+        [
+          {
+            "node": "Gmail: enviar relatório",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "f58c17e0-2388-53b6-8910-867070a22002",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,181 @@
+{
+  "name": "07 — Monitoramento de site com alerta",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Monitoramento de site/API\n\nVerifica a URL a cada 5 minutos. Qualquer status >= 400 dispara\nalerta no Telegram.\n\nTroque a URL, o `SEU_CHAT_ID` e a credencial do Telegram.\nDica: use `fullResponse` + `neverError` (já configurado) para que\no fluxo consiga tratar o erro em vez de falhar.",
+        "height": 240,
+        "width": 520,
+        "color": 5
+      },
+      "id": "57589ad6-89c2-5a1e-8179-59ce304ab9e3",
+      "name": "Nota 07",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        },
+        "misfirePolicy": "skip"
+      },
+      "id": "4349f506-c77b-5713-be9a-9aa970960ba5",
+      "name": "A cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://example.com",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "07f54646-c743-511e-aaa1-a30c0542504e",
+      "name": "Verificar site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "71d4e9a6-0123-59e4-adf2-0a49d79b8d59",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 400,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": false,
+        "options": {}
+      },
+      "id": "0473b833-797f-5e60-8423-ce1bec9b2cef",
+      "name": "Falha (status >= 400)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "SEU_CHAT_ID",
+        "text": "=🚨 Site indisponível\n\nURL: https://example.com\nStatus: {{ $json.statusCode }}\nHorário: {{ $now.toFormat('dd/MM/yyyy HH:mm') }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b676e091-0e54-5d36-af3b-05b62cbb8b2b",
+      "name": "Telegram: indisponível",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        740,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "e1186c7d-d3d5-5b34-b7c3-2b2236ec2729",
+      "name": "Site OK",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        740,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "A cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Verificar site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar site": {
+      "main": [
+        [
+          {
+            "node": "Falha (status >= 400)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falha (status >= 400)?": {
+      "main": [
+        [
+          {
+            "node": "Telegram: indisponível",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Site OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "6c9a3452-d8a5-5337-9dbf-28cf2cdf5db9",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

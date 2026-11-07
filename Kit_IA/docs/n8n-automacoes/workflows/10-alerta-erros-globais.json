@@ -1,0 +1,100 @@
+{
+  "name": "10 — Alerta global de erros",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Alerta global de erros\n\n1. Ative este workflow.\n2. Em **Settings → Error Workflow** dos outros workflows,\nselecione este.\n\nAssim qualquer falha gera uma mensagem no Telegram com o nome\ndo workflow, o erro e o link da execução.",
+        "height": 220,
+        "width": 520,
+        "color": 5
+      },
+      "id": "b707da0a-07b3-5e2b-85ff-e7e6ad9cbbda",
+      "name": "Nota 10",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -280
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0eea4036-1b8d-5e3e-9480-0098fb8f5112",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const e = $input.first().json;\nconst wf = e.workflow?.name ?? 'workflow desconhecido';\nconst msg = e.execution?.error?.message ?? e.execution?.lastNodeExecuted ?? 'erro sem detalhes';\nconst url = e.execution?.url ?? '';\nconst texto = `⚠️ Falha em: ${wf}\\n\\nErro: ${msg}\\n${url}`;\nreturn [{ json: { texto, workflow: wf, erro: msg, execucao: url } }];"
+      },
+      "id": "727b38ba-d0b7-5732-966d-91edf065a8d0",
+      "name": "Montar alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "SEU_CHAT_ID",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "d11d84af-ca66-5a1f-83f7-cbad04dc24cd",
+      "name": "Telegram: erro",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Montar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar alerta": {
+      "main": [
+        [
+          {
+            "node": "Telegram: erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "dd4fdb6e-fb4b-5b90-9606-47c28dfa9360",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

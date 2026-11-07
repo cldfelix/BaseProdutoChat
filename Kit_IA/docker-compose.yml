@@ -1,0 +1,231 @@
+name: baseproduto
+
+volumes:
+  n8n_storage:
+  postgres_ha_data:
+  ollama_storage:
+  qdrant_storage:
+
+networks:
+  base-produtos-chat:
+
+x-n8n: &service-n8n
+  image: n8nio/n8n:latest
+  networks: ['base-produtos-chat']
+  env_file:
+    - path: .env
+      required: true
+    - path: ../postgres/.env
+      required: true
+  environment:
+    DB_TYPE: postgresdb
+    DB_POSTGRESDB_HOST: postgres
+    DB_POSTGRESDB_PORT: '5432'
+    N8N_DIAGNOSTICS_ENABLED: 'false'
+    N8N_PERSONALIZATION_ENABLED: 'false'
+    OLLAMA_HOST: ${OLLAMA_HOST:-ollama:11434}
+  entrypoint: ['/bin/sh', '-c']
+  command:
+    - |
+      export DB_POSTGRESDB_USER="$$POSTGRES_USER"
+      export DB_POSTGRESDB_PASSWORD="$$POSTGRES_PASSWORD"
+      export DB_POSTGRESDB_DATABASE="$$POSTGRES_DB_N8N"
+      exec tini -- /docker-entrypoint.sh
+
+x-ollama: &service-ollama
+  image: ollama/ollama:latest
+  hostname: ollama
+  networks:
+    base-produtos-chat:
+      aliases:
+        - ollama
+  restart: unless-stopped
+  ports:
+    - 11434:11434
+  volumes:
+    - ollama_storage:/root/.ollama
+  # A rede anuncia IPv6, mas não há rota. O binário Go da Ollama tenta o
+  # registro por IPv6 e falha. Desligar IPv6 no container e usar o resolver
+  # do sistema faz o pull seguir só por IPv4.
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
+  sysctls:
+    net.ipv6.conf.all.disable_ipv6: '1'
+    net.ipv6.conf.default.disable_ipv6: '1'
+  environment:
+    GODEBUG: netdns=cgo
+    OLLAMA_HOST: 0.0.0.0:11434
+  entrypoint: ['/bin/sh', '-c']
+  command:
+    - |
+      touch /etc/gai.conf
+      grep -q '::ffff:0:0/96' /etc/gai.conf || printf '\nprecedence ::ffff:0:0/96  100\n' >> /etc/gai.conf
+      export GODEBUG=netdns=cgo
+      exec ollama serve
+  healthcheck:
+    test: ['CMD', 'ollama', 'list']
+    interval: 5s
+    timeout: 10s
+    retries: 20
+    start_period: 15s
+
+x-init-ollama: &init-ollama
+  image: ollama/ollama:latest
+  networks: ['base-produtos-chat']
+  volumes:
+    - ollama_storage:/root/.ollama
+  entrypoint: /bin/sh
+  environment:
+    OLLAMA_HOST: ollama:11434
+    GODEBUG: netdns=cgo
+  command:
+    - '-c'
+    - |
+      for model in llama3.2 nomic-embed-text; do
+        i=0
+        until ollama pull "$$model"; do
+          i=$$((i+1))
+          if [ "$$i" -ge 8 ]; then
+            echo "Falha ao baixar $$model"
+            exit 1
+          fi
+          echo "Tentativa $$i falhou ao baixar $$model; nova tentativa em 5s"
+          sleep 5
+        done
+      done
+
+services:
+  postgres:
+    build:
+      context: ../postgres
+    image: baseproduto-postgres:pg16
+    pull_policy: build
+    hostname: postgres
+    container_name: postgres_gis_vector_timescale
+    networks: ['base-produtos-chat']
+    restart: unless-stopped
+    env_file:
+      - path: ../postgres/.env
+        required: true
+    environment:
+      PGDATA: /home/postgres/pgdata/data
+    ports:
+      - '5432:5432'
+    shm_size: 1g
+    volumes:
+      - postgres_ha_data:/home/postgres/pgdata/data
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  n8n-import:
+    <<: *service-n8n
+    hostname: n8n-import
+    container_name: n8n-import
+    entrypoint: /bin/sh
+    command:
+      - '-c'
+      - |
+        export DB_POSTGRESDB_USER="$$POSTGRES_USER"
+        export DB_POSTGRESDB_PASSWORD="$$POSTGRES_PASSWORD"
+        export DB_POSTGRESDB_DATABASE="$$POSTGRES_DB_N8N"
+        n8n import:credentials --separate --input=/demo-data/credentials || echo "Credenciais já existentes ou importação parcial"
+        existing="$$(n8n list:workflow || true)"
+        for f in /docs-workflows/*.json /demo-data/workflows/*.json; do
+          [ -f "$$f" ] || continue
+          name="$$(node -e 'const fs=require("fs"); const w=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String((Array.isArray(w)?w[0]:w).name||""))' "$$f")"
+          if [ -z "$$name" ]; then
+            echo "Sem nome: $$f"
+            continue
+          fi
+          if printf '%s\n' "$$existing" | grep -F "$$name" >/dev/null; then
+            echo "Já importado: $$name"
+          else
+            echo "Importando: $$name"
+            n8n import:workflow --input="$$f"
+          fi
+        done
+    volumes:
+      - ./n8n/demo-data:/demo-data
+      - ./docs/n8n-automacoes/workflows:/docs-workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  n8n:
+    <<: *service-n8n
+    hostname: n8n
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - 5678:5678
+    volumes:
+      - n8n_storage:/home/node/.n8n
+      - ./n8n/demo-data:/demo-data
+      - ./shared:/data/shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+      n8n-import:
+        condition: service_completed_successfully
+
+  qdrant:
+    image: qdrant/qdrant
+    hostname: qdrant
+    container_name: qdrant
+    networks: ['base-produtos-chat']
+    restart: unless-stopped
+    ports:
+      - 6333:6333
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  ollama-cpu:
+    <<: *service-ollama
+    profiles: ['cpu']
+
+  ollama-gpu:
+    <<: *service-ollama
+    profiles: ['gpu-nvidia']
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ollama-gpu-amd:
+    profiles: ['gpu-amd']
+    <<: *service-ollama
+    image: ollama/ollama:rocm
+    devices:
+      - '/dev/kfd'
+      - '/dev/dri'
+
+  ollama-pull-llama-cpu:
+    <<: *init-ollama
+    profiles: ['cpu']
+    depends_on:
+      ollama-cpu:
+        condition: service_healthy
+
+  ollama-pull-llama-gpu:
+    <<: *init-ollama
+    profiles: ['gpu-nvidia']
+    depends_on:
+      ollama-gpu:
+        condition: service_healthy
+
+  ollama-pull-llama-gpu-amd:
+    profiles: ['gpu-amd']
+    <<: *init-ollama
+    image: ollama/ollama:rocm
+    depends_on:
+      ollama-gpu-amd:
+        condition: service_healthy

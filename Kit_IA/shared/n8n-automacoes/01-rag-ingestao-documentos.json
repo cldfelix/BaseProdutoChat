@@ -1,0 +1,214 @@
+{
+  "name": "01 — RAG: ingestão de documentos",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Ingestão RAG (PDF → Qdrant)\n\n1. Antes de rodar, baixe o modelo de embeddings:\n`docker exec ollama ollama pull nomic-embed-text`\n\n2. Confira a credencial **Local QdrantApi database**\n(URL `http://qdrant:6333`).\n\n3. Execute o formulário, envie um PDF e confira a coleção\n`documentos` em http://localhost:6333/dashboard\n\n4. Depois abra o workflow **02 — Chat RAG**.",
+        "height": 300,
+        "width": 520,
+        "color": 5
+      },
+      "id": "32f8694a-2fa9-5756-aab2-0ff5a533face",
+      "name": "Nota 01",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Base de conhecimento (RAG)",
+        "formDescription": "Envie um PDF para indexar na base de conhecimento local.",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "arquivo",
+              "fieldLabel": "Documento PDF",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "rag-ingestao",
+          "appendAttribution": false,
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Documento recebido. Indexação em andamento."
+            }
+          }
+        }
+      },
+      "id": "dc08c24a-0872-5c95-a1c9-3d2ddfd3d941",
+      "name": "Form: enviar PDF",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3cec434c-a955-5868-b1ae-53fcea569dd3"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "arquivo",
+        "options": {}
+      },
+      "id": "dc3402a8-0add-5a02-97c6-08fd35428aea",
+      "name": "Extrair texto (PDF)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "documentos"
+        },
+        "options": {}
+      },
+      "id": "74c508d4-5c7a-5a4d-b94f-c93b7b65d415",
+      "name": "Qdrant: indexar",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        520,
+        0
+      ],
+      "credentials": {
+        "qdrantApi": {
+          "id": "sFfERYppMeBnFNeA",
+          "name": "Local QdrantApi database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "json",
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.text }}",
+        "textSplittingMode": "custom"
+      },
+      "id": "9104f013-f46d-5d61-9ce0-0e9ae20419ac",
+      "name": "Carregar e dividir texto",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "chunkSize": 1000,
+        "chunkOverlap": 150
+      },
+      "id": "0676ac16-9024-50e9-a9b3-f73068dd39ec",
+      "name": "Divisor 1000/150",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        520,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text"
+      },
+      "id": "3107f904-e6e4-520d-958f-bd2814d8f35f",
+      "name": "Ollama Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        520,
+        600
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Form: enviar PDF": {
+      "main": [
+        [
+          {
+            "node": "Extrair texto (PDF)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair texto (PDF)": {
+      "main": [
+        [
+          {
+            "node": "Qdrant: indexar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carregar e dividir texto": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant: indexar",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Divisor 1000/150": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Carregar e dividir texto",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant: indexar",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "2f27ba9a-e025-5b87-81f1-ff3f29d1401a",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

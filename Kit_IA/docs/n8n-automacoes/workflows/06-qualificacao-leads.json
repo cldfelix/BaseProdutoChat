@@ -1,0 +1,364 @@
+{
+  "name": "06 — Qualificação de leads com IA",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Qualificação de leads\n\nO formulário simula a entrada de um lead. A IA atribui um score\nde 0 a 100 e classifica em quente/morno/frio.\n\nScore >= 70 dispara alerta no Telegram; todos os leads são\ngravados em `./shared/leads.jsonl`.\n\nTroque `SEU_CHAT_ID` e crie a credencial do Telegram.",
+        "height": 320,
+        "width": 560,
+        "color": 5
+      },
+      "id": "30704e1b-38a2-58e5-ac5f-ad4887d0f9c5",
+      "name": "Nota 06",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Contato comercial",
+        "formDescription": "Conte um pouco sobre a sua necessidade.",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "nome",
+              "fieldLabel": "Nome",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldName": "email",
+              "fieldLabel": "E-mail",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldName": "empresa",
+              "fieldLabel": "Empresa",
+              "fieldType": "text",
+              "requiredField": false
+            },
+            {
+              "fieldName": "mensagem",
+              "fieldLabel": "O que você precisa?",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldName": "orcamento",
+              "fieldLabel": "Orçamento previsto",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Até R$ 5 mil"
+                  },
+                  {
+                    "option": "R$ 5 mil a R$ 20 mil"
+                  },
+                  {
+                    "option": "Acima de R$ 20 mil"
+                  },
+                  {
+                    "option": "Ainda não sei"
+                  }
+                ]
+              },
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {
+          "path": "leads",
+          "appendAttribution": false,
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Recebemos o seu contato. O time comercial falará com você."
+            }
+          }
+        }
+      },
+      "id": "c06645ee-c4b4-5903-96b5-7c7d51850d4a",
+      "name": "Form: lead",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f18ae44b-9506-502c-9c08-a5068923dec6"
+    },
+    {
+      "parameters": {
+        "text": "=Nome: {{ $json.nome }}\nE-mail: {{ $json.email }}\nEmpresa: {{ $json.empresa || 'não informada' }}\nOrçamento: {{ $json.orcamento || 'não informado' }}\nMensagem: {{ $json.mensagem }}",
+        "schemaType": "fromAttributes",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "score",
+              "type": "number",
+              "description": "Aderência do lead ao produto, de 0 a 100",
+              "required": true
+            },
+            {
+              "name": "classificacao",
+              "type": "string",
+              "description": "quente, morno ou frio",
+              "required": true
+            },
+            {
+              "name": "resumo",
+              "type": "string",
+              "description": "Resumo em uma frase da necessidade do lead",
+              "required": true
+            },
+            {
+              "name": "proximo_passo",
+              "type": "string",
+              "description": "Ação comercial recomendada",
+              "required": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0dc04d05-d388-5760-9ae0-c281343ec519",
+      "name": "Qualificar lead",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "a1409ebb-51d6-5dd8-b187-f7f9cdf930b6",
+      "name": "Ollama Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        260,
+        260
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const form = $('Form: lead').first().json;\nconst ia = $input.first().json.output ?? {};\nconst lead = {\n  nome: form.nome ?? null,\n  email: form.email ?? null,\n  empresa: form.empresa ?? null,\n  orcamento: form.orcamento ?? null,\n  mensagem: form.mensagem ?? null,\n  score: Number(ia.score ?? 0),\n  classificacao: ia.classificacao ?? 'indefinido',\n  resumo: ia.resumo ?? '',\n  proximo_passo: ia.proximo_passo ?? '',\n  recebido_em: new Date().toISOString(),\n};\nreturn [{ json: { ...lead, linha: JSON.stringify(lead) + '\\n' } }];"
+      },
+      "id": "7f7b9956-7670-571e-95d7-94b760e127a1",
+      "name": "Normalizar lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "linha",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "f983a073-0fb3-5d9e-a186-a8b16056ba9f",
+      "name": "Converter em texto",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/data/shared/leads.jsonl",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "269b0f93-bbc6-595d-ba27-1f69fc0ad031",
+      "name": "Anexar em leads.jsonl",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "a12c4fc5-c45c-5900-a8a6-f81da6a83c90",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": 70,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": false,
+        "options": {}
+      },
+      "id": "0f2d974b-b36a-5a53-8a5f-1e30f4c10447",
+      "name": "Score >= 70?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        780,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "SEU_CHAT_ID",
+        "text": "=🔥 LEAD QUENTE (score {{ $json.score }})\n\n{{ $json.nome }} — {{ $json.empresa || 'empresa não informada' }}\n{{ $json.email }}\n\n{{ $json.resumo }}\nPróximo passo: {{ $json.proximo_passo }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "50cbe5b9-71e2-5364-b638-82d00043c74c",
+      "name": "Telegram: lead quente",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1a119f65-4c13-5c02-b36a-b22c0f82414c",
+      "name": "Fim (registrar apenas)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "Form: lead": {
+      "main": [
+        [
+          {
+            "node": "Qualificar lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Qualificar lead",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualificar lead": {
+      "main": [
+        [
+          {
+            "node": "Normalizar lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar lead": {
+      "main": [
+        [
+          {
+            "node": "Converter em texto",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Score >= 70?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter em texto": {
+      "main": [
+        [
+          {
+            "node": "Anexar em leads.jsonl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score >= 70?": {
+      "main": [
+        [
+          {
+            "node": "Telegram: lead quente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim (registrar apenas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "2c1cdfe7-ac3c-5ee2-83ec-8cfbb13e701b",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
