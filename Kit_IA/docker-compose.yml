@@ -5,6 +5,7 @@ volumes:
   postgres_ha_data:
   ollama_storage:
   qdrant_storage:
+  redis_data:
 
 networks:
   base-produtos-chat:
@@ -134,7 +135,8 @@ services:
         export DB_POSTGRESDB_USER="$$POSTGRES_USER"
         export DB_POSTGRESDB_PASSWORD="$$POSTGRES_PASSWORD"
         export DB_POSTGRESDB_DATABASE="$$POSTGRES_DB_N8N"
-        n8n import:credentials --separate --input=/demo-data/credentials || echo "Credenciais já existentes ou importação parcial"
+        node /reencrypt-credentials.js /demo-data/credentials /tmp/credentials
+        n8n import:credentials --separate --input=/tmp/credentials
         existing="$$(n8n list:workflow || true)"
         for f in /docs-workflows/*.json /demo-data/workflows/*.json; do
           [ -f "$$f" ] || continue
@@ -152,6 +154,7 @@ services:
         done
     volumes:
       - ./n8n/demo-data:/demo-data
+      - ./n8n/reencrypt-credentials.js:/reencrypt-credentials.js:ro
       - ./docs/n8n-automacoes/workflows:/docs-workflows:ro
     depends_on:
       postgres:
@@ -184,6 +187,30 @@ services:
       - 6333:6333
     volumes:
       - qdrant_storage:/qdrant/storage
+
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    container_name: redis
+    networks: ['base-produtos-chat']
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command:
+      - sh
+      - -c
+      - redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   ollama-cpu:
     <<: *service-ollama
